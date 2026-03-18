@@ -229,6 +229,44 @@ func rgbaToDIB(img *image.RGBA) syscall.Handle {
 }
 
 // ---------------------------------------------------------------------------
+// Create HICON from a PNG file (for tray icon fallback)
+// ---------------------------------------------------------------------------
+
+func createHIconFromPNG(pngPath string, size int) syscall.Handle {
+	img := loadPNG(pngPath, size)
+	if img == nil {
+		return 0
+	}
+	img = resizeRGBA(img, size, size)
+
+	// Create color bitmap (32-bit ARGB, premultiplied)
+	colorBM := rgbaToDIB(img)
+	if colorBM == 0 {
+		return 0
+	}
+
+	// Create monochrome mask bitmap (all zeros = fully opaque)
+	maskBM := createBitmap(int32(size), int32(size), 1, 1, nil)
+	if maskBM == 0 {
+		deleteObject(colorBM)
+		return 0
+	}
+
+	info := iconInfo{
+		FIcon:   1, // TRUE = icon (not cursor)
+		HbmMask: maskBM,
+		HbmColor: colorBM,
+	}
+	hIcon := createIconIndirect(&info)
+
+	// CreateIconIndirect copies the bitmaps, so we can delete ours
+	deleteObject(maskBM)
+	deleteObject(colorBM)
+
+	return hIcon
+}
+
+// ---------------------------------------------------------------------------
 // Cleanup all cached bitmaps
 // ---------------------------------------------------------------------------
 

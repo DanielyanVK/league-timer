@@ -123,8 +123,8 @@ func (o *overlay) run() {
 	// Start 1-second timer for countdown ticks
 	setTimer(o.hwnd, timerIDTick, 1000)
 
-	// Re-assert topmost every 2s so the overlay stays above the game
-	setTimer(o.hwnd, timerIDTopmost, 2000)
+	// Re-assert topmost every 500ms so the overlay stays above the game
+	setTimer(o.hwnd, timerIDTopmost, 500)
 
 	// Message loop
 	var m msg
@@ -160,8 +160,11 @@ func wndProc(hwnd syscall.Handle, message uint32, wParam, lParam uintptr) uintpt
 	case wmTimer:
 		if wParam == timerIDTick {
 			o.onTick()
-		} else if wParam == timerIDTopmost {
+	} else if wParam == timerIDTopmost {
 			if o.gameActive {
+				// Find LoL window and force ourselves above it
+				lolHwnd := findWindow(mustUTF16Ptr("RiotWindowClass"), nil)
+				_ = lolHwnd
 				setWindowPos(o.hwnd, hwndTopmost, 0, 0, 0, 0, swpNoSize|swpNoMove|swpNoActivate)
 			}
 		}
@@ -185,6 +188,14 @@ func wndProc(hwnd syscall.Handle, message uint32, wParam, lParam uintptr) uintpt
 
 	case wmMouseActivate:
 		return uintptr(maNoActivate)
+
+	case wmWindowPosChanging:
+		// Prevent other windows (including the game) from pushing us down
+		if o.gameActive {
+			wp := (*windowPos)(unsafe.Pointer(lParam))
+			wp.HwndInsertAfter = syscall.Handle(hwndTopmost)
+		}
+		return defWindowProc(hwnd, message, wParam, lParam)
 
 	case wmCommand:
 		if wParam == idTrayQuit {
@@ -639,12 +650,18 @@ func (o *overlay) buildEnemyRows(enemies []enemy) {
 // ---------------------------------------------------------------------------
 
 func (o *overlay) setupTray() {
-	// Try to load icon from file
+	// Try to load icon from .ico file
 	icoPath := resourcePath("ico\\icon.ico")
 	hIcon := loadImage(0, mustUTF16Ptr(icoPath), imageIcon, 0, 0, lrLoadFromFile|lrDefaultSize)
+
+	// Fallback: create HICON from SummonerFlash.png
 	if hIcon == 0 {
-		// Fallback: use a default system icon
-		hIcon = loadImage(0, mustUTF16Ptr("#32512"), imageIcon, 0, 0, lrDefaultSize) // IDI_APPLICATION-like
+		hIcon = createHIconFromPNG(resourcePath("assets\\spells\\SummonerFlash.png"), 32)
+	}
+
+	// Last resort: default system icon
+	if hIcon == 0 {
+		hIcon = loadImage(0, mustUTF16Ptr("#32512"), imageIcon, 0, 0, lrDefaultSize)
 	}
 	o.trayIconHandle = hIcon
 

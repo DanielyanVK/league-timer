@@ -5,8 +5,13 @@
 package main
 
 import (
+	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/draw"
+	"image/png"
 	"io"
 	"net/http"
 	"os"
@@ -74,6 +79,10 @@ func main() {
 		downloadFile(url, path, forceUpdate)
 	}
 
+	// Generate icon
+	fmt.Println("\n--- Generating Icon ---")
+	generateICO()
+
 	// Save version
 	saveLocalVersion(latestVer)
 	fmt.Printf("\n[Success] All assets synced for version %s!\n", latestVer)
@@ -128,6 +137,102 @@ func getChampionList(version string) ([]string, error) {
 		champs = append(champs, name)
 	}
 	return champs, nil
+}
+
+// ---------------------------------------------------------------------------
+// Generate ico/icon.ico from SummonerFlash.png (PNG-in-ICO format)
+// ---------------------------------------------------------------------------
+
+func generateICO() {
+	srcPath := filepath.Join(spellDir, "SummonerFlash.png")
+	dstPath := filepath.Join("ico", "icon.ico")
+
+	if _, err := os.Stat(srcPath); err != nil {
+		fmt.Println(" [!] SummonerFlash.png not found, skipping icon generation")
+		return
+	}
+
+	os.MkdirAll("ico", 0755)
+
+	// Load source PNG
+	f, err := os.Open(srcPath)
+	if err != nil {
+		fmt.Printf(" [!] Could not open %s: %v\n", srcPath, err)
+		return
+	}
+	srcImg, err := png.Decode(f)
+	f.Close()
+	if err != nil {
+		fmt.Printf(" [!] Could not decode PNG: %v\n", err)
+		return
+	}
+
+	// Create multiple sizes
+	sizes := []int{16, 32, 48}
+	var pngDatas [][]byte
+	for _, sz := range sizes {
+		resized := resizeNearestNeighbor(srcImg, sz, sz)
+		var buf bytes.Buffer
+		png.Encode(&buf, resized)
+		pngDatas = append(pngDatas, buf.Bytes())
+	}
+
+	// Write ICO file
+	out, err := os.Create(dstPath)
+	if err != nil {
+		fmt.Printf(" [!] Could not create %s: %v\n", dstPath, err)
+		return
+	}
+	defer out.Close()
+
+	n := uint16(len(sizes))
+	// ICO header: reserved(2) + type(2) + count(2) = 6 bytes
+	binary.Write(out, binary.LittleEndian, uint16(0)) // reserved
+	binary.Write(out, binary.LittleEndian, uint16(1)) // type: icon
+	binary.Write(out, binary.LittleEndian, n)          // image count
+
+	// Calculate offsets: header(6) + entries(n*16) + data
+	offset := uint32(6 + n*16)
+	for i, sz := range sizes {
+		w := byte(sz)
+		if sz == 256 {
+			w = 0
+		}
+		out.Write([]byte{w})    // width
+		out.Write([]byte{w})    // height
+		out.Write([]byte{0})    // color count
+		out.Write([]byte{0})    // reserved
+		binary.Write(out, binary.LittleEndian, uint16(1))                // planes
+		binary.Write(out, binary.LittleEndian, uint16(32))               // bit count
+		binary.Write(out, binary.LittleEndian, uint32(len(pngDatas[i]))) // data size
+		binary.Write(out, binary.LittleEndian, offset)                   // data offset
+		offset += uint32(len(pngDatas[i]))
+	}
+
+	// Write PNG data for each size
+	for _, data := range pngDatas {
+		out.Write(data)
+	}
+
+	fmt.Printf(" [+] Generated: %s (sizes: %v)\n", dstPath, sizes)
+}
+
+func resizeNearestNeighbor(src image.Image, w, h int) *image.RGBA {
+	bounds := src.Bounds()
+	sw, sh := bounds.Dx(), bounds.Dy()
+	dst := image.NewRGBA(image.Rect(0, 0, w, h))
+	if sw == w && sh == h {
+		draw.Draw(dst, dst.Bounds(), src, bounds.Min, draw.Src)
+		return dst
+	}
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			sx := x * sw / w
+			sy := y * sh / h
+			dst.Set(x, y, src.At(sx+bounds.Min.X, sy+bounds.Min.Y))
+		}
+	}
+	return dst
 }
 
 func downloadFile(url, path string, force bool) {

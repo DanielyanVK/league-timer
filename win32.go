@@ -63,9 +63,11 @@ var (
 	pGetSystemMetrics          = user32.NewProc("GetSystemMetrics")
 	pGetClientRect             = user32.NewProc("GetClientRect")
 	pLoadCursorW               = user32.NewProc("LoadCursorW")
+	pFindWindowW               = user32.NewProc("FindWindowW")
 
 	// gdi32
 	pCreateCompatibleDC      = gdi32.NewProc("CreateCompatibleDC")
+	pCreateBitmap            = gdi32.NewProc("CreateBitmap")
 	pCreateCompatibleBitmap  = gdi32.NewProc("CreateCompatibleBitmap")
 	pDeleteDC                = gdi32.NewProc("DeleteDC")
 	pSelectObject            = gdi32.NewProc("SelectObject")
@@ -87,6 +89,10 @@ var (
 
 	// kernel32
 	pGetModuleHandleW = kernel32.NewProc("GetModuleHandleW")
+
+	// user32 (icon)
+	pCreateIconIndirect = user32.NewProc("CreateIconIndirect")
+	pDestroyIcon        = user32.NewProc("DestroyIcon")
 )
 
 // ---------------------------------------------------------------------------
@@ -104,17 +110,18 @@ const (
 	exNoActivate = 0x08000000
 
 	// Window messages
-	wmDestroy      = 0x0002
-	wmPaint        = 0x000F
-	wmClose        = 0x0010
-	wmCommand      = 0x0111
-	wmTimer        = 0x0113
-	wmLButtonDown  = 0x0201
-	wmLButtonUp    = 0x0202
-	wmMouseMove    = 0x0200
-	wmRButtonDown  = 0x0204
-	wmMouseActivate = 0x0021
-	wmApp          = 0x8000
+	wmDestroy           = 0x0002
+	wmPaint             = 0x000F
+	wmClose             = 0x0010
+	wmWindowPosChanging = 0x0046
+	wmCommand           = 0x0111
+	wmTimer             = 0x0113
+	wmLButtonDown       = 0x0201
+	wmLButtonUp         = 0x0202
+	wmMouseMove         = 0x0200
+	wmRButtonDown       = 0x0204
+	wmMouseActivate     = 0x0021
+	wmApp               = 0x8000
 
 	// ShowWindow
 	swHide = 0
@@ -124,6 +131,7 @@ const (
 	hwndTopmost   = ^uintptr(0) // (HWND)-1 = HWND_TOPMOST
 	swpNoSize     = 0x0001
 	swpNoMove     = 0x0002
+	swpNoZOrder   = 0x0004
 	swpNoActivate = 0x0010
 
 	// SetLayeredWindowAttributes
@@ -591,4 +599,44 @@ func getModuleHandle() syscall.Handle {
 func loadCursor(instance syscall.Handle, cursorName uintptr) syscall.Handle {
 	ret, _, _ := pLoadCursorW.Call(uintptr(instance), cursorName)
 	return syscall.Handle(ret)
+}
+
+func findWindow(className, windowName *uint16) syscall.Handle {
+	ret, _, _ := pFindWindowW.Call(
+		uintptr(unsafe.Pointer(className)),
+		uintptr(unsafe.Pointer(windowName)),
+	)
+	return syscall.Handle(ret)
+}
+
+func createBitmap(w, h int32, planes, bitCount uint32, bits unsafe.Pointer) syscall.Handle {
+	ret, _, _ := pCreateBitmap.Call(uintptr(w), uintptr(h), uintptr(planes), uintptr(bitCount), uintptr(bits))
+	return syscall.Handle(ret)
+}
+
+// --- Icon ---
+
+type iconInfo struct {
+	FIcon    int32
+	XHotspot uint32
+	YHotspot uint32
+	HbmMask  syscall.Handle
+	HbmColor syscall.Handle
+}
+
+func createIconIndirect(info *iconInfo) syscall.Handle {
+	ret, _, _ := pCreateIconIndirect.Call(uintptr(unsafe.Pointer(info)))
+	return syscall.Handle(ret)
+}
+
+// --- WINDOWPOS (for WM_WINDOWPOSCHANGING) ---
+
+type windowPos struct {
+	Hwnd            syscall.Handle
+	HwndInsertAfter syscall.Handle
+	X               int32
+	Y               int32
+	Cx              int32
+	Cy              int32
+	Flags           uint32
 }

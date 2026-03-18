@@ -48,6 +48,17 @@ Then copy `spell-timer.exe`, `assets/`, and `ico/` to your Windows machine.
 - Cooldown calculations include enemy **summoner spell haste** from items (Ionian Boots, etc.).
 - Spell cooldowns are updated from DDragon on each launch.
 
+> **Important:** League of Legends must run in **Borderless** or **Windowed** mode
+> (not Fullscreen) for the overlay to appear on top. This is the default LoL setting.
+> Go to in-game Settings → Video → Window Mode → Borderless.
+
+## Icon
+
+The build script automatically:
+1. Generates `ico/icon.ico` from the SummonerFlash spell PNG (multi-size: 16/32/48px)
+2. Embeds it into the exe using [rsrc](https://github.com/akavel/rsrc) so it shows in Explorer and the taskbar
+3. Uses the same icon for the system tray notification
+
 ## Project structure
 
 ```
@@ -58,12 +69,14 @@ Then copy `spell-timer.exe`, `assets/`, and `ico/` to your Windows machine.
 ├── api.go                     # LoL Live Client API + DDragon API client
 ├── overlay.go                 # Overlay window, rendering, input, drag, tray
 ├── cmd/download-assets/
-│   └── main.go                # Standalone asset downloader
+│   └── main.go                # Asset downloader + icon generator
+├── build.bat                  # One-click build (assets + icon + exe)
+├── download-assets.bat        # Update assets only
 ├── assets/
-│   ├── champions/             # Champion icon PNGs (downloaded)
-│   └── spells/                # Spell icon PNGs (downloaded)
+│   ├── champions/             # Champion icon PNGs
+│   └── spells/                # Spell icon PNGs
 └── ico/
-    └── icon.ico               # Tray icon (optional)
+    └── icon.ico               # Generated app icon
 ```
 
 ## Dependencies
