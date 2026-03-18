@@ -85,6 +85,7 @@ func (o *overlay) run() {
 		LpfnWndProc:   syscall.NewCallback(wndProc),
 		HInstance:     o.hInstance,
 		LpszClassName: className,
+		HCursor:       loadCursor(0, idcArrow),
 		HbrBackground: createSolidBrush(hexToCOLORREF(colorBG)),
 	}
 	registerClassEx(&wc)
@@ -122,6 +123,9 @@ func (o *overlay) run() {
 	// Start 1-second timer for countdown ticks
 	setTimer(o.hwnd, timerIDTick, 1000)
 
+	// Re-assert topmost every 2s so the overlay stays above the game
+	setTimer(o.hwnd, timerIDTopmost, 2000)
+
 	// Message loop
 	var m msg
 	for {
@@ -156,6 +160,10 @@ func wndProc(hwnd syscall.Handle, message uint32, wParam, lParam uintptr) uintpt
 	case wmTimer:
 		if wParam == timerIDTick {
 			o.onTick()
+		} else if wParam == timerIDTopmost {
+			if o.gameActive {
+				setWindowPos(o.hwnd, hwndTopmost, 0, 0, 0, 0, swpNoSize|swpNoMove|swpNoActivate)
+			}
 		}
 		return 0
 
@@ -194,6 +202,7 @@ func wndProc(hwnd syscall.Handle, message uint32, wParam, lParam uintptr) uintpt
 
 	case wmDestroy:
 		killTimer(hwnd, timerIDTick)
+		killTimer(hwnd, timerIDTopmost)
 		postQuitMessage(0)
 		return 0
 	}
@@ -601,8 +610,8 @@ func (o *overlay) pollGameLoop() {
 			n := len(enemies)
 			ww := windowWidth()
 			wh := windowHeight(n)
-			moveWindow(o.hwnd, int32(o.cfg.X), int32(o.cfg.Y), ww, wh, true)
-			showWindow(o.hwnd, swShow)
+		moveWindow(o.hwnd, int32(o.cfg.X), int32(o.cfg.Y), ww, wh, true)
+			showWindow(o.hwnd, swShowNoActivate)
 			setWindowPos(o.hwnd, hwndTopmost, 0, 0, 0, 0, swpNoSize|swpNoMove|swpNoActivate)
 			invalidateRect(o.hwnd, nil, false)
 		} else {

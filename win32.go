@@ -62,6 +62,7 @@ var (
 	pFillRect                  = user32.NewProc("FillRect")
 	pGetSystemMetrics          = user32.NewProc("GetSystemMetrics")
 	pGetClientRect             = user32.NewProc("GetClientRect")
+	pLoadCursorW               = user32.NewProc("LoadCursorW")
 
 	// gdi32
 	pCreateCompatibleDC      = gdi32.NewProc("CreateCompatibleDC")
@@ -168,8 +169,15 @@ const (
 	smCxScreen = 0
 	smCyScreen = 1
 
+	// Cursors
+	idcArrow = 32512
+
+	// ShowWindow
+	swShowNoActivate = 8
+
 	// Timer IDs
-	timerIDTick = 1
+	timerIDTick    = 1
+	timerIDTopmost = 2
 )
 
 // Custom messages
@@ -577,5 +585,10 @@ func mustUTF16Ptr(s string) *uint16 {
 
 func getModuleHandle() syscall.Handle {
 	ret, _, _ := pGetModuleHandleW.Call(0)
+	return syscall.Handle(ret)
+}
+
+func loadCursor(instance syscall.Handle, cursorName uintptr) syscall.Handle {
+	ret, _, _ := pLoadCursorW.Call(uintptr(instance), cursorName)
 	return syscall.Handle(ret)
 }

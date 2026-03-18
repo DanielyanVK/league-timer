@@ -8,7 +8,7 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-echo [1/2] Downloading dependencies...
+echo [1/3] Downloading dependencies...
 go mod tidy
 if %errorlevel% neq 0 (
     echo [ERROR] go mod tidy failed.
@@ -16,7 +16,13 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-echo [2/2] Building spell-timer.exe...
+echo [2/3] Downloading/updating assets...
+go run ./cmd/download-assets
+if %errorlevel% neq 0 (
+    echo [WARNING] Asset download had issues, continuing build...
+)
+
+echo [3/3] Building spell-timer.exe...
 go build -ldflags "-H windowsgui -s -w" -o spell-timer.exe .
 if %errorlevel% neq 0 (
     echo [ERROR] Build failed.
